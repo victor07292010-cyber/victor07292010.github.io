@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Neon Room Rush</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <section id="homeScreen" class="panel visible">
+      <h1>⚡ Neon Room Rush</h1>
+      <p class="sub">Collect orbs, dodge mines, and race to 30 points.</p>
+      <label>Player Name <input id="nameInput" maxlength="16" value="Pilot" /></label>
+      <label>Host Address <input id="hostInput" placeholder="localhost:3000" value="" /></label>
+      <label>Room Code (for join) <input id="roomInput" maxlength="6" placeholder="ABCD" /></label>
+      <div class="buttonRow">
+        <button id="hostBtn">Host Game</button>
+        <button id="joinBtn">Join Game</button>
+      </div>
+      <p class="tip">If hosting on this machine, leave Host Address empty.</p>
+      <p id="homeError" class="error"></p>
+    </section>
+
+    <section id="lobbyScreen" class="panel hidden">
+      <h2>Lobby <span id="roomCodeBadge"></span></h2>
+      <p id="roomLink" class="mono"></p>
+      <ul id="playerList"></ul>
+      <div class="buttonRow">
+        <button id="startBtn">Start Round</button>
+        <button id="leaveBtn">Leave</button>
+      </div>
+      <p class="tip">Host can start when at least 2 players are connected.</p>
+    </section>
+
+    <section id="gameScreen" class="hidden">
+      <canvas id="gameCanvas" width="1280" height="720"></canvas>
+      <div id="hud">
+        <div><strong>Room:</strong> <span id="hudRoom">----</span></div>
+        <div><strong>Timer:</strong> <span id="hudTimer">180</span></div>
+        <div><strong>You:</strong> <span id="hudSelf">0</span></div>
+      </div>
+      <div id="scoreboard"></div>
+      <div id="notice"></div>
+      <div id="chatPanel">
+        <div id="chatLog"></div>
+        <form id="chatForm">
+          <input id="chatInput" maxlength="140" placeholder="Say something..." autocomplete="off" />
+          <button>Send</button>
+        </form>
+      </div>
+      <div id="mobileControls" class="hidden">
+        <div id="stickBase"><div id="stickKnob"></div></div>
+        <button id="actionBtn">MINE</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "neon-room-rush",
+  "version": "1.0.0",
+  "description": "Server-authoritative LAN multiplayer canvas game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "multiplayer",
+    "websocket",
+    "canvas",
+    "lan-game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
