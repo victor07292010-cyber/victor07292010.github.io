@@ -1,7 +1,7 @@
 {
-  "name": "neon-room-rush",
+  "name": "prism-pulse-arena",
   "version": "1.0.0",
-  "description": "Server-authoritative LAN multiplayer canvas game",
+  "description": "Polished server-authoritative LAN multiplayer browser game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

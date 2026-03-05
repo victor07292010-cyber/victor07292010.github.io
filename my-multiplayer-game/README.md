@@ -1,83 +1,72 @@
-# Neon Room Rush (LAN Multiplayer)
+# Prism Pulse Arena (LAN Multiplayer)
 
-A server-authoritative 2D browser game built with Node.js, Express, WebSockets, and Canvas 2D.
+Prism Pulse Arena is a polished, server-authoritative multiplayer browser game for local hosting. One machine hosts with Node.js, everyone else joins from desktop or phone browsers using the host IP and room code.
 
-## Features
-- Host and join flow (Host Game / Join Game).
-- Room code multiplayer (host + joiners on same network).
-- Server-authoritative simulation at fixed 30 ticks/sec.
-- Snapshot interpolation on clients for smooth movement.
-- Competitive gameplay:
-  - Collect orbs (+1)
-  - Pick up powerups (+2, boost/shield)
-  - Drop mines (action key / mobile button)
-  - Respawn after getting popped
-  - Round timer + win score condition
-- In-game chat via WebSocket.
-- Mobile controls (virtual joystick + action button).
-- Sound effects (WebAudio beeps), screen shake, particle effects.
+## Gameplay
+- **Objective**: hit **40 points** before others or lead when timer expires.
+- Collect **energy orbs** (+1 each).
+- Grab **powerups** (+3):
+  - `BOOST` faster movement
+  - `SHIELD` blocks one mine hit window
+  - `PULSE` instantly refreshes pulse cooldown
+- Drop **mines** to shatter opponents.
+- Trigger **pulse blast** (desktop `E`) to push nearby players away.
+- Respawn after short delay when eliminated.
+- Combo streak bonus every 10 orb pickups.
+
+## Tech
+- Node.js + Express + `ws`
+- Fixed authoritative server tick: **30 TPS**
+- Client snapshot interpolation for smooth movement
+- In-game WebSocket chat
+- Mobile controls (virtual stick + two action buttons)
+- Visual polish: glow rendering, starfield, particles, hit shake, UI glass effects
 
 ## Requirements
-- Node.js 18+ (works on Windows/macOS/Linux)
-- Browser on host and clients (desktop or phone browser)
+- Node.js 18+ on host
+- Any modern browser for host/joiners
 
-## Run locally
-1. Open terminal in `my-multiplayer-game`.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start server:
-   ```bash
-   npm start
-   ```
-4. On host machine, open:
-   `http://localhost:3000`
+## Run
+```bash
+cd my-multiplayer-game
+npm install
+npm start
+```
+Open on host: `http://localhost:3000`
 
-## Host / Join steps
-### Host device
-1. Click **Host Game**.
-2. Share your room code and host address with others.
-3. Click **Start Round** once at least 2 players are in lobby.
-
-### Joiner devices
-1. On host, find LAN IP (see section below).
-2. On each client browser open `http://HOST_LAN_IP:3000`.
-3. Enter same room code and click **Join Game**.
-
-## How to host on LAN
-1. Start server on host machine (`npm start`).
-2. Find host IP:
+## Host on LAN
+1. Start server with `npm start` on host PC.
+2. Find host LAN IP:
    - Windows: `ipconfig`
    - macOS/Linux: `ifconfig` or `ip addr`
-3. Make sure host firewall allows inbound TCP on port `3000`.
-4. Other devices on same Wi-Fi/LAN open `http://HOST_IP:3000`.
+3. Ensure firewall allows inbound TCP port `3000`.
+4. Players browse to `http://HOST_IP:3000`, enter room code, join.
 
 ## Controls
 ### Desktop
 - Move: `WASD` or arrow keys
-- Action (drop mine): `Space`
+- Mine: `Space`
+- Pulse Blast: `E`
 
 ### Mobile
-- Left joystick: move
-- Right button: drop mine
+- Left stick: movement
+- **MINE** button: drop mine
+- **PULSE** button: radial push
 
 ## Troubleshooting
-- **Port 3000 already in use**
-  - Stop process using 3000, or run with another port:
-    ```bash
-    PORT=3001 npm start
-    ```
-- **Clients cannot connect**
-  - Verify everyone is on same network.
-  - Use host LAN IP, not `localhost`.
-  - Check firewall allows incoming port 3000.
-- **Blank page or mixed-content warning**
-  - If serving over HTTPS, WebSocket must use WSS automatically from same host.
-- **High lag/stutter**
-  - Keep devices on stable Wi-Fi.
-  - Close heavy background apps.
+- **Port in use**
+  - Run on a different port:
+    - macOS/Linux: `PORT=3001 npm start`
+    - Windows PowerShell: `$env:PORT=3001; npm start`
+- **Cannot connect from phone**
+  - Confirm same Wi-Fi/LAN.
+  - Use host LAN IP, not localhost.
+  - Check firewall inbound rules.
+- **Game opens but no updates**
+  - Make sure WebSocket traffic is not blocked by antivirus/firewall.
+- **HTTPS mixed-content warning**
+  - Keep protocol consistent (HTTP with ws, HTTPS with wss).
 
-## Scripts
-- `npm start` → run server
-- `npm run dev` → run server in watch mode
+## NPM Scripts
+- `npm start` : start server
+- `npm run dev` : start server in watch mode

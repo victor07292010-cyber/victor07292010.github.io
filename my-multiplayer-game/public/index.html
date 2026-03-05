@@ -2,60 +2,67 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Neon Room Rush</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Prism Pulse Arena</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app">
-    <section id="homeScreen" class="panel visible">
-      <h1>⚡ Neon Room Rush</h1>
-      <p class="sub">Collect orbs, dodge mines, and race to 30 points.</p>
-      <label>Player Name <input id="nameInput" maxlength="16" value="Pilot" /></label>
-      <label>Host Address <input id="hostInput" placeholder="localhost:3000" value="" /></label>
-      <label>Room Code (for join) <input id="roomInput" maxlength="6" placeholder="ABCD" /></label>
-      <div class="buttonRow">
+  <div class="bg-blur"></div>
+  <main id="app">
+    <section id="home" class="card show">
+      <h1>🌌 Prism Pulse Arena</h1>
+      <p class="muted">Fast LAN multiplayer brawler: collect, trap, blast, and dominate.</p>
+      <label>Name <input id="nameInput" value="Pilot" maxlength="16" /></label>
+      <label>Host Address <input id="hostInput" placeholder="localhost:3000" /></label>
+      <label>Room Code <input id="roomInput" placeholder="ABCD" maxlength="6" /></label>
+      <div class="row">
         <button id="hostBtn">Host Game</button>
         <button id="joinBtn">Join Game</button>
       </div>
-      <p class="tip">If hosting on this machine, leave Host Address empty.</p>
       <p id="homeError" class="error"></p>
     </section>
 
-    <section id="lobbyScreen" class="panel hidden">
-      <h2>Lobby <span id="roomCodeBadge"></span></h2>
+    <section id="lobby" class="card hide">
+      <h2>Lobby <span id="roomBadge"></span></h2>
       <p id="roomLink" class="mono"></p>
-      <ul id="playerList"></ul>
-      <div class="buttonRow">
+      <ul id="players"></ul>
+      <div class="row">
         <button id="startBtn">Start Round</button>
-        <button id="leaveBtn">Leave</button>
+        <button id="leaveBtn" class="ghost">Leave</button>
       </div>
-      <p class="tip">Host can start when at least 2 players are connected.</p>
+      <p class="muted">Needs at least 2 players. Host can start.</p>
     </section>
 
-    <section id="gameScreen" class="hidden">
-      <canvas id="gameCanvas" width="1280" height="720"></canvas>
-      <div id="hud">
-        <div><strong>Room:</strong> <span id="hudRoom">----</span></div>
-        <div><strong>Timer:</strong> <span id="hudTimer">180</span></div>
-        <div><strong>You:</strong> <span id="hudSelf">0</span></div>
+    <section id="game" class="hide">
+      <canvas id="canvas" width="1600" height="900"></canvas>
+
+      <div id="hud" class="glass">
+        <span>Room: <b id="hudRoom">----</b></span>
+        <span>Time: <b id="hudTimer">180</b></span>
+        <span>Score: <b id="hudScore">0</b></span>
+        <span>Ping: <b id="hudPing">--</b>ms</span>
       </div>
-      <div id="scoreboard"></div>
+
+      <div id="scoreboard" class="glass"></div>
       <div id="notice"></div>
-      <div id="chatPanel">
+
+      <div id="chat" class="glass">
         <div id="chatLog"></div>
         <form id="chatForm">
-          <input id="chatInput" maxlength="140" placeholder="Say something..." autocomplete="off" />
+          <input id="chatInput" maxlength="140" autocomplete="off" placeholder="Chat" />
           <button>Send</button>
         </form>
       </div>
-      <div id="mobileControls" class="hidden">
-        <div id="stickBase"><div id="stickKnob"></div></div>
-        <button id="actionBtn">MINE</button>
+
+      <div id="mobile" class="hide">
+        <div id="stick"><div id="knob"></div></div>
+        <div id="mobileButtons">
+          <button id="mineBtn">MINE</button>
+          <button id="pulseBtn">PULSE</button>
+        </div>
       </div>
     </section>
-  </div>
-
+  </main>
   <script src="client.js"></script>
 </body>
 </html>

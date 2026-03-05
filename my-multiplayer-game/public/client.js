@@ -1,31 +1,13 @@
+const $ = (id) => document.getElementById(id);
+
 const dom = {
-  homeScreen: document.getElementById('homeScreen'),
-  lobbyScreen: document.getElementById('lobbyScreen'),
-  gameScreen: document.getElementById('gameScreen'),
-  nameInput: document.getElementById('nameInput'),
-  hostInput: document.getElementById('hostInput'),
-  roomInput: document.getElementById('roomInput'),
-  hostBtn: document.getElementById('hostBtn'),
-  joinBtn: document.getElementById('joinBtn'),
-  homeError: document.getElementById('homeError'),
-  roomCodeBadge: document.getElementById('roomCodeBadge'),
-  roomLink: document.getElementById('roomLink'),
-  playerList: document.getElementById('playerList'),
-  startBtn: document.getElementById('startBtn'),
-  leaveBtn: document.getElementById('leaveBtn'),
-  hudRoom: document.getElementById('hudRoom'),
-  hudTimer: document.getElementById('hudTimer'),
-  hudSelf: document.getElementById('hudSelf'),
-  scoreboard: document.getElementById('scoreboard'),
-  notice: document.getElementById('notice'),
-  chatLog: document.getElementById('chatLog'),
-  chatForm: document.getElementById('chatForm'),
-  chatInput: document.getElementById('chatInput'),
-  mobileControls: document.getElementById('mobileControls'),
-  stickBase: document.getElementById('stickBase'),
-  stickKnob: document.getElementById('stickKnob'),
-  actionBtn: document.getElementById('actionBtn'),
-  canvas: document.getElementById('gameCanvas')
+  home: $('home'), lobby: $('lobby'), game: $('game'),
+  nameInput: $('nameInput'), hostInput: $('hostInput'), roomInput: $('roomInput'),
+  hostBtn: $('hostBtn'), joinBtn: $('joinBtn'), startBtn: $('startBtn'), leaveBtn: $('leaveBtn'),
+  homeError: $('homeError'), roomBadge: $('roomBadge'), roomLink: $('roomLink'), players: $('players'),
+  canvas: $('canvas'), hudRoom: $('hudRoom'), hudTimer: $('hudTimer'), hudScore: $('hudScore'), hudPing: $('hudPing'),
+  scoreboard: $('scoreboard'), notice: $('notice'), chatLog: $('chatLog'), chatForm: $('chatForm'), chatInput: $('chatInput'),
+  mobile: $('mobile'), stick: $('stick'), knob: $('knob'), mineBtn: $('mineBtn'), pulseBtn: $('pulseBtn')
 };
 
 const ctx = dom.canvas.getContext('2d');
@@ -34,68 +16,67 @@ const state = {
   id: null,
   roomCode: null,
   hostId: null,
-  arena: { width: 1600, height: 900 },
+  arena: { width: 1800, height: 1000 },
+  walls: [],
   inGame: false,
   snapshots: [],
-  playersMeta: [],
-  timer: 0,
+  keys: { up: false, down: false, left: false, right: false, action: false, pulse: false },
   particles: [],
+  stars: Array.from({ length: 140 }, () => ({ x: Math.random(), y: Math.random(), z: Math.random() })),
+  ping: 0,
   noticeUntil: 0,
   shake: 0,
-  keys: { up: false, down: false, left: false, right: false, action: false },
-  touchVec: { x: 0, y: 0 },
-  audioCtx: null
+  audio: null,
+  names: new Map()
 };
 
-const palette = ['#56f2ff', '#ffa8fb', '#9fff68', '#ffd84f', '#9db5ff', '#ff8a8a'];
+const colors = ['#5ff3ff', '#fca6ff', '#99ff77', '#ffd761', '#9fb0ff', '#ff9f9f'];
 
-function beep(freq = 440, duration = 0.06, type = 'sine', volume = 0.03) {
+function beep(freq = 420, dur = 0.06, type = 'sine', gain = 0.03) {
   try {
-    state.audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
-    const o = state.audioCtx.createOscillator();
-    const g = state.audioCtx.createGain();
-    o.type = type;
-    o.frequency.value = freq;
-    g.gain.value = volume;
-    o.connect(g).connect(state.audioCtx.destination);
-    o.start();
-    o.stop(state.audioCtx.currentTime + duration);
-  } catch (_) {
-    // ignore audio errors
-  }
+    state.audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    const osc = state.audio.createOscillator();
+    const amp = state.audio.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    amp.gain.value = gain;
+    osc.connect(amp).connect(state.audio.destination);
+    osc.start();
+    osc.stop(state.audio.currentTime + dur);
+  } catch {}
 }
 
-function showScreen(which) {
-  dom.homeScreen.classList.add('hidden');
-  dom.lobbyScreen.classList.add('hidden');
-  dom.gameScreen.classList.add('hidden');
-  which.classList.remove('hidden');
+function show(screen) {
+  dom.home.classList.add('hide');
+  dom.lobby.classList.add('hide');
+  dom.game.classList.add('hide');
+  screen.classList.remove('hide');
 }
 
-function wsURL(hostRaw) {
-  const host = hostRaw.trim() || window.location.host;
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = dom.hostInput.value.trim() || location.host;
   return `${proto}://${host}`;
 }
 
-function connect() {
-  return new Promise((resolve, reject) => {
-    dom.homeError.textContent = '';
-    const url = wsURL(dom.hostInput.value);
-    const ws = new WebSocket(url);
+async function connectIfNeeded() {
+  if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) return;
+
+  await new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl());
     ws.onopen = () => {
       state.ws = ws;
       resolve();
     };
-    ws.onerror = () => reject(new Error('Could not connect to host. Check IP/port.'));
-    ws.onmessage = onMessage;
+    ws.onerror = () => reject(new Error('Could not connect to server'));
     ws.onclose = () => {
-      if (state.inGame || state.roomCode) addChat('[system]', 'Disconnected from server');
+      addChat('[system]', 'Disconnected');
       state.inGame = false;
       state.roomCode = null;
       state.snapshots = [];
-      showScreen(dom.homeScreen);
+      show(dom.home);
     };
+    ws.onmessage = onMsg;
   });
 }
 
@@ -103,134 +84,176 @@ function send(type, data = {}) {
   if (state.ws?.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify({ type, ...data }));
 }
 
-function onMessage(evt) {
-  const msg = JSON.parse(evt.data);
-  if (msg.type === 'welcome') {
+function onMsg(e) {
+  const msg = JSON.parse(e.data);
+
+  if (msg.type === 'hello') {
     state.id = msg.id;
     state.arena = msg.arena;
+    state.walls = msg.walls || [];
     return;
   }
+
   if (msg.type === 'hosted') {
     state.roomCode = msg.roomCode;
     dom.roomInput.value = msg.roomCode;
     return;
   }
+
   if (msg.type === 'roomUpdate') {
-    state.playersMeta = msg.room.players;
-    state.roomCode = msg.room.code;
-    state.hostId = msg.room.hostId;
-    state.timer = msg.room.timer;
-    dom.roomCodeBadge.textContent = `#${state.roomCode}`;
-    const hostForLink = dom.hostInput.value.trim() || window.location.host;
-    dom.roomLink.textContent = `Join URL: http://${hostForLink}/?room=${state.roomCode}`;
-    dom.hudRoom.textContent = state.roomCode;
-    renderLobby(msg.room);
-    if (!msg.room.inGame) showScreen(dom.lobbyScreen);
+    const room = msg.room;
+    state.roomCode = room.code;
+    state.hostId = room.hostId;
+    state.walls = room.walls || state.walls;
+
+    dom.roomBadge.textContent = `#${room.code}`;
+    dom.hudRoom.textContent = room.code;
+
+    const hostAddr = dom.hostInput.value.trim() || location.host;
+    dom.roomLink.textContent = `Join URL: http://${hostAddr}/?room=${room.code}`;
+
+    dom.players.innerHTML = '';
+    room.players.forEach((p) => {
+      state.names.set(p.id, p.name);
+      const li = document.createElement('li');
+      li.textContent = `${p.name} ${p.id === room.hostId ? '👑' : ''}`;
+      dom.players.appendChild(li);
+    });
+
+    dom.startBtn.disabled = !(state.id === room.hostId && room.players.length > 1 && !room.inGame);
+    if (!room.inGame) show(dom.lobby);
     return;
   }
+
   if (msg.type === 'gameStarted') {
     state.inGame = true;
     state.snapshots = [];
-    showScreen(dom.gameScreen);
-    beep(620, 0.12, 'triangle', 0.05);
+    show(dom.game);
+    beep(680, 0.11, 'triangle', 0.05);
     return;
   }
+
   if (msg.type === 'snapshot') {
-    const prev = state.snapshots[state.snapshots.length - 1];
-    if (prev && prev.players) detectEvents(prev, msg);
+    const previous = state.snapshots[state.snapshots.length - 1];
+    if (previous) detectEvents(previous, msg);
     state.snapshots.push(msg);
-    if (state.snapshots.length > 25) state.snapshots.shift();
-    state.timer = msg.timer;
+    if (state.snapshots.length > 30) state.snapshots.shift();
     return;
   }
-  if (msg.type === 'chat') {
-    addChat(msg.from, msg.text);
-    return;
-  }
-  if (msg.type === 'notice') {
-    showNotice(msg.text);
+
+  if (msg.type === 'notice') return notice(msg.text);
+  if (msg.type === 'chat') return addChat(msg.from, msg.text);
+  if (msg.type === 'pong') {
+    state.ping = Math.max(0, Date.now() - msg.stamp);
+    dom.hudPing.textContent = String(state.ping);
     return;
   }
   if (msg.type === 'errorMessage') {
     dom.homeError.textContent = msg.message;
     return;
   }
+
   if (msg.type === 'gameOver') {
     state.inGame = false;
-    showNotice(`${msg.reason} Winner: ${msg.ranking[0]?.name ?? 'n/a'}`);
-    renderScoreboard(msg.ranking, true);
-    beep(240, 0.25, 'sawtooth', 0.07);
+    renderScore(msg.ranking, true);
+    notice(`${msg.reason} · Winner: ${msg.ranking[0]?.name || 'none'}`);
+    beep(220, 0.25, 'sawtooth', 0.08);
   }
 }
 
-function renderLobby(room) {
-  dom.playerList.innerHTML = '';
-  room.players.forEach((p) => {
-    const li = document.createElement('li');
-    li.textContent = `${p.name}${p.id === room.hostId ? ' 👑' : ''}`;
-    dom.playerList.appendChild(li);
-  });
-  const isHost = state.id === room.hostId;
-  dom.startBtn.disabled = !isHost || room.players.length < 2 || room.inGame;
-}
-
-function detectEvents(prev, curr) {
-  const prevMap = new Map(prev.players.map((p) => [p.id, p]));
-  for (const p of curr.players) {
-    const old = prevMap.get(p.id);
+function detectEvents(prev, now) {
+  const byId = new Map(prev.players.map((p) => [p.id, p]));
+  for (const p of now.players) {
+    const old = byId.get(p.id);
     if (!old) continue;
-    if (!old.alive && p.alive) {
-      addParticles(p.x, p.y, '#8affde', 14);
-      beep(550, 0.08, 'square', 0.03);
-    }
     if (old.alive && !p.alive) {
-      addParticles(p.x, p.y, '#ff5373', 30);
-      state.shake = 9;
-      beep(120, 0.16, 'sawtooth', 0.06);
+      explode(p.x, p.y, '#ff6a86', 35);
+      state.shake = 8;
+      beep(130, 0.15, 'sawtooth', 0.05);
     }
-    if (p.score > old.score) beep(880, 0.04, 'triangle', 0.025);
+    if (!old.alive && p.alive) {
+      explode(p.x, p.y, '#72ffe6', 16);
+      beep(520, 0.08, 'square', 0.03);
+    }
+    if (p.score > old.score) beep(900, 0.04, 'triangle', 0.02);
   }
 }
 
-function currentRenderState() {
-  const renderDelay = 110;
-  const t = Date.now() - renderDelay;
-  if (state.snapshots.length < 2) return state.snapshots[0];
+function currentSnapshot() {
+  if (!state.snapshots.length) return null;
+  if (state.snapshots.length === 1) return state.snapshots[0];
+
+  const target = Date.now() - 100;
   let a = state.snapshots[0];
   let b = state.snapshots[state.snapshots.length - 1];
+
   for (let i = 0; i < state.snapshots.length - 1; i += 1) {
-    const s1 = state.snapshots[i];
-    const s2 = state.snapshots[i + 1];
-    if (s1.t <= t && t <= s2.t) {
-      a = s1;
-      b = s2;
+    if (state.snapshots[i].t <= target && target <= state.snapshots[i + 1].t) {
+      a = state.snapshots[i];
+      b = state.snapshots[i + 1];
       break;
     }
   }
-  const alpha = Math.max(0, Math.min(1, (t - a.t) / Math.max(1, b.t - a.t)));
-  const lerp = (x, y) => x + (y - x) * alpha;
+
+  const blend = Math.min(1, Math.max(0, (target - a.t) / Math.max(1, b.t - a.t)));
+  const lerp = (x, y) => x + (y - x) * blend;
   const mapB = new Map(b.players.map((p) => [p.id, p]));
-  const players = a.players.map((p1) => {
-    const p2 = mapB.get(p1.id) || p1;
-    return { ...p1, x: lerp(p1.x, p2.x), y: lerp(p1.y, p2.y), score: p2.score, alive: p2.alive, mineCooldown: p2.mineCooldown, boost: p2.boost, shield: p2.shield, respawnAt: p2.respawnAt };
+  const players = a.players.map((pa) => {
+    const pb = mapB.get(pa.id) || pa;
+    return { ...pb, x: lerp(pa.x, pb.x), y: lerp(pa.y, pb.y) };
   });
+
   return { ...b, players };
 }
 
-function playerColor(id) {
-  let hash = 0;
-  for (const ch of id) hash += ch.charCodeAt(0);
-  return palette[hash % palette.length];
+function colorFor(id) {
+  let h = 0;
+  for (const c of id) h += c.charCodeAt(0);
+  return colors[h % colors.length];
+}
+
+function drawBackground(w, h) {
+  const g = ctx.createLinearGradient(0, 0, w, h);
+  g.addColorStop(0, '#071027');
+  g.addColorStop(1, '#050912');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  for (const s of state.stars) {
+    const x = s.x * w;
+    const y = s.y * h;
+    const r = 0.4 + s.z * 1.6;
+    ctx.fillStyle = `rgba(148,178,255,${0.2 + s.z * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = 'rgba(98, 145, 241, 0.12)';
+  for (let x = 0; x < state.arena.width; x += 90) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, state.arena.height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < state.arena.height; y += 90) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(state.arena.width, y);
+    ctx.stroke();
+  }
 }
 
 function draw() {
   requestAnimationFrame(draw);
   if (!state.inGame) return;
-  const snap = currentRenderState();
+
+  const snap = currentSnapshot();
   if (!snap) return;
 
   const ratio = dom.canvas.clientWidth / state.arena.width;
   dom.canvas.height = Math.round(state.arena.height * ratio);
+
   const sx = dom.canvas.width / state.arena.width;
   const sy = dom.canvas.height / state.arena.height;
 
@@ -239,111 +262,165 @@ function draw() {
 
   if (state.shake > 0) {
     ctx.translate((Math.random() - 0.5) * state.shake, (Math.random() - 0.5) * state.shake);
-    state.shake *= 0.82;
+    state.shake *= 0.84;
   }
 
   ctx.scale(sx, sy);
+  drawBackground(dom.canvas.width, dom.canvas.height);
 
-  // arena grid
-  ctx.fillStyle = '#060a16';
-  ctx.fillRect(0, 0, state.arena.width, state.arena.height);
-  ctx.strokeStyle = 'rgba(100,150,255,0.10)';
-  for (let x = 0; x < state.arena.width; x += 80) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.arena.height); ctx.stroke();
-  }
-  for (let y = 0; y < state.arena.height; y += 80) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.arena.width, y); ctx.stroke();
+  for (const w of state.walls) {
+    ctx.fillStyle = '#122343';
+    ctx.fillRect(w.x, w.y, w.w, w.h);
+    ctx.strokeStyle = '#4b75c9';
+    ctx.strokeRect(w.x, w.y, w.w, w.h);
   }
 
-  // entities
-  for (const orb of snap.orbs) {
-    ctx.fillStyle = '#69f5ff';
-    ctx.beginPath(); ctx.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2); ctx.fill();
-  }
-  for (const p of snap.powerups) {
-    ctx.fillStyle = p.type === 'boost' ? '#ffe364' : '#bf93ff';
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.fillText(p.type === 'boost' ? 'B' : 'S', p.x - 4, p.y + 4);
-  }
-  for (const m of snap.mines) {
-    ctx.strokeStyle = '#ff4d8f';
+  snap.orbs.forEach((o) => {
+    const pulse = (Math.sin((Date.now() * 0.004) + o.glow * 10) + 1) * 0.5;
+    const rr = o.r + pulse * 2;
+    const grad = ctx.createRadialGradient(o.x, o.y, 2, o.x, o.y, rr + 10);
+    grad.addColorStop(0, '#c8fbff');
+    grad.addColorStop(1, 'rgba(95,239,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, rr + 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#60f0ff';
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, rr, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  snap.powerups.forEach((p) => {
+    const col = p.type === 'boost' ? '#ffd462' : p.type === 'shield' ? '#bd91ff' : '#6cb7ff';
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0a1327';
+    ctx.font = 'bold 12px sans-serif';
+    const text = p.type === 'boost' ? 'B' : p.type === 'shield' ? 'S' : 'P';
+    ctx.fillText(text, p.x - 4, p.y + 4);
+  });
+
+  snap.mines.forEach((m) => {
+    ctx.strokeStyle = '#ff5c8c';
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.stroke();
-  }
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
 
-  for (const p of snap.players) {
-    const color = playerColor(p.id);
+  snap.pulses.forEach((p) => {
+    ctx.strokeStyle = 'rgba(121,170,255,0.65)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  snap.players.forEach((p) => {
     if (!p.alive) {
-      ctx.fillStyle = 'rgba(180,180,180,.35)';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI * 2); ctx.fill();
-      continue;
+      ctx.fillStyle = 'rgba(175,175,175,0.25)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 19, 0, Math.PI * 2);
+      ctx.fill();
+      return;
     }
 
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI * 2); ctx.fill();
+    const c = colorFor(p.id);
+
+    const glow = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, 26);
+    glow.addColorStop(0, c);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 19, 0, Math.PI * 2);
+    ctx.fill();
+
     if (p.boost) {
-      ctx.strokeStyle = '#ffd95f';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 23, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#ffe072';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 24, 0, Math.PI * 2);
+      ctx.stroke();
     }
     if (p.shield) {
-      ctx.strokeStyle = '#b18eff';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 28, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#b68fff';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 29, 0, Math.PI * 2);
+      ctx.stroke();
     }
     if (p.id === state.id) {
-      ctx.strokeStyle = '#fff';
-      ctx.beginPath(); ctx.arc(p.x, p.y, 21, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 22, 0, Math.PI * 2);
+      ctx.stroke();
     }
-  }
+  });
 
-  updateParticles();
-  renderHUD(snap);
+  renderParticles();
+  updateHUD(snap);
   ctx.restore();
 }
 
-function addParticles(x, y, color, count) {
+function explode(x, y, color, count) {
   for (let i = 0; i < count; i += 1) {
-    state.particles.push({ x, y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, life: 1, color });
+    state.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      life: 1,
+      color
+    });
   }
 }
 
-function updateParticles() {
+function renderParticles() {
   for (const p of state.particles) {
     p.x += p.vx;
     p.y += p.vy;
     p.vx *= 0.95;
     p.vy *= 0.95;
-    p.life -= 0.025;
-    ctx.fillStyle = p.color;
+    p.life -= 0.03;
     ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
     ctx.fillRect(p.x, p.y, 3, 3);
     ctx.globalAlpha = 1;
   }
   state.particles = state.particles.filter((p) => p.life > 0);
 }
 
-function renderHUD(snap) {
-  dom.hudTimer.textContent = Math.max(0, Math.ceil(state.timer));
-  const sorted = [...snap.players].sort((a, b) => b.score - a.score);
-  renderScoreboard(sorted, false);
+function updateHUD(snap) {
+  dom.hudTimer.textContent = String(Math.max(0, Math.ceil(snap.timer)));
   const me = snap.players.find((p) => p.id === state.id);
-  dom.hudSelf.textContent = me ? `${me.score}${me.alive ? '' : ' (respawning...)'}` : '0';
+  dom.hudScore.textContent = me ? `${me.score}${me.alive ? '' : ' (respawn)'}` : '0';
+
+  const rank = [...snap.players]
+    .map((p) => ({ ...p, name: state.names.get(p.id) || p.id.slice(0, 4) }))
+    .sort((a, b) => b.score - a.score);
+
+  renderScore(rank, false);
 }
 
-function renderScoreboard(list, final = false) {
-  dom.scoreboard.innerHTML = `${final ? '<strong>Round Over</strong><br/>' : ''}` + list
-    .slice(0, 8)
-    .map((p, i) => `${i + 1}. ${p.name || p.id.slice(0, 4)} - <b>${p.score}</b>`)
-    .join('<br/>');
+function renderScore(rank, final) {
+  dom.scoreboard.innerHTML = `${final ? '<b>Round Over</b><br />' : ''}` + rank.slice(0, 8)
+    .map((p, i) => `${i + 1}. ${p.name} <b>${p.score}</b>`) 
+    .join('<br />');
 }
 
-function showNotice(text) {
+function notice(text) {
   dom.notice.textContent = text;
   dom.notice.style.opacity = '1';
-  state.noticeUntil = Date.now() + 2000;
+  state.noticeUntil = Date.now() + 1900;
   setTimeout(() => {
     if (Date.now() >= state.noticeUntil) dom.notice.style.opacity = '0';
-  }, 2100);
+  }, 2000);
 }
 
 function addChat(from, text) {
@@ -354,125 +431,141 @@ function addChat(from, text) {
   dom.chatLog.scrollTop = dom.chatLog.scrollHeight;
 }
 
-function sendInputLoop() {
-  setInterval(() => {
-    if (!state.ws || !state.roomCode) return;
-    send('input', { input: state.keys });
-  }, 33);
+function bindKeyboard() {
+  const set = (down) => (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.key === 'ArrowUp') state.keys.up = down;
+    if (k === 's' || e.key === 'ArrowDown') state.keys.down = down;
+    if (k === 'a' || e.key === 'ArrowLeft') state.keys.left = down;
+    if (k === 'd' || e.key === 'ArrowRight') state.keys.right = down;
+    if (e.code === 'Space') {
+      if (down) {
+        state.keys.action = true;
+        setTimeout(() => { state.keys.action = false; }, 90);
+      }
+    }
+    if (k === 'e') {
+      if (down) {
+        state.keys.pulse = true;
+        setTimeout(() => { state.keys.pulse = false; }, 90);
+      }
+    }
+  };
+  addEventListener('keydown', set(true));
+  addEventListener('keyup', set(false));
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') state.keys.up = true;
-  if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') state.keys.down = true;
-  if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') state.keys.left = true;
-  if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') state.keys.right = true;
-  if (e.code === 'Space') {
-    state.keys.action = true;
-    setTimeout(() => { state.keys.action = false; }, 90);
-  }
-});
+function bindMobile() {
+  if (!matchMedia('(pointer: coarse)').matches) return;
+  dom.mobile.classList.remove('hide');
 
-document.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') state.keys.up = false;
-  if (e.key === 'ArrowDown' || e.key.toLowerCase() === 's') state.keys.down = false;
-  if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') state.keys.left = false;
-  if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') state.keys.right = false;
-});
+  const center = { x: 60, y: 60 };
+  let touching = false;
 
-function setupMobileControls() {
-  const isTouch = matchMedia('(pointer: coarse)').matches;
-  if (!isTouch) return;
-  dom.mobileControls.classList.remove('hidden');
-
-  let active = false;
-  const center = { x: 59, y: 59 };
-
-  function updateStick(clientX, clientY) {
-    const rect = dom.stickBase.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    let dx = x - center.x;
-    let dy = y - center.y;
+  const updateStick = (cx, cy) => {
+    const r = dom.stick.getBoundingClientRect();
+    let dx = cx - r.left - center.x;
+    let dy = cy - r.top - center.y;
+    const max = 45;
     const mag = Math.hypot(dx, dy) || 1;
-    const max = 44;
     if (mag > max) {
       dx = (dx / mag) * max;
       dy = (dy / mag) * max;
     }
-    dom.stickKnob.style.left = `${center.x - 27 + dx}px`;
-    dom.stickKnob.style.top = `${center.y - 27 + dy}px`;
+    dom.knob.style.left = `${33 + dx}px`;
+    dom.knob.style.top = `${33 + dy}px`;
 
-    const normX = dx / max;
-    const normY = dy / max;
-    state.keys.left = normX < -0.25;
-    state.keys.right = normX > 0.25;
-    state.keys.up = normY < -0.25;
-    state.keys.down = normY > 0.25;
-  }
+    state.keys.left = dx < -12;
+    state.keys.right = dx > 12;
+    state.keys.up = dy < -12;
+    state.keys.down = dy > 12;
+  };
 
-  function resetStick() {
-    dom.stickKnob.style.left = '32px';
-    dom.stickKnob.style.top = '32px';
-    state.keys.up = state.keys.down = state.keys.left = state.keys.right = false;
-  }
+  const resetStick = () => {
+    dom.knob.style.left = '33px';
+    dom.knob.style.top = '33px';
+    state.keys.left = state.keys.right = state.keys.up = state.keys.down = false;
+  };
 
-  dom.stickBase.addEventListener('touchstart', (e) => {
-    active = true;
+  dom.stick.addEventListener('touchstart', (e) => {
+    touching = true;
     updateStick(e.touches[0].clientX, e.touches[0].clientY);
-  });
-  dom.stickBase.addEventListener('touchmove', (e) => {
-    if (!active) return;
-    updateStick(e.touches[0].clientX, e.touches[0].clientY);
-  });
-  dom.stickBase.addEventListener('touchend', () => {
-    active = false;
+  }, { passive: true });
+  dom.stick.addEventListener('touchmove', (e) => {
+    if (touching) updateStick(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  dom.stick.addEventListener('touchend', () => {
+    touching = false;
     resetStick();
   });
 
-  dom.actionBtn.addEventListener('touchstart', () => {
+  dom.mineBtn.addEventListener('touchstart', () => {
     state.keys.action = true;
     setTimeout(() => { state.keys.action = false; }, 100);
-    beep(200, 0.05, 'square', 0.04);
-  });
+    beep(240, 0.05, 'square', 0.04);
+  }, { passive: true });
+
+  dom.pulseBtn.addEventListener('touchstart', () => {
+    state.keys.pulse = true;
+    setTimeout(() => { state.keys.pulse = false; }, 100);
+    beep(520, 0.05, 'triangle', 0.04);
+  }, { passive: true });
 }
 
-async function beginHost() {
+async function startHost() {
+  dom.homeError.textContent = '';
   try {
-    if (!state.ws || state.ws.readyState > 1) await connect();
-    send('host', { name: dom.nameInput.value || 'Pilot' });
+    await connectIfNeeded();
+    send('host', { name: dom.nameInput.value.trim() || 'Pilot' });
   } catch (err) {
     dom.homeError.textContent = err.message;
   }
 }
 
-async function beginJoin() {
+async function startJoin() {
+  dom.homeError.textContent = '';
   try {
-    if (!state.ws || state.ws.readyState > 1) await connect();
-    send('join', { name: dom.nameInput.value || 'Pilot', roomCode: dom.roomInput.value.trim().toUpperCase() });
+    await connectIfNeeded();
+    send('join', { name: dom.nameInput.value.trim() || 'Pilot', roomCode: dom.roomInput.value.trim().toUpperCase() });
   } catch (err) {
     dom.homeError.textContent = err.message;
   }
 }
 
-dom.hostBtn.addEventListener('click', beginHost);
-dom.joinBtn.addEventListener('click', beginJoin);
-dom.startBtn.addEventListener('click', () => send('startGame'));
-dom.leaveBtn.addEventListener('click', () => state.ws?.close());
-dom.chatForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const text = dom.chatInput.value.trim();
-  if (!text) return;
-  send('chat', { text });
-  dom.chatInput.value = '';
-});
+function loops() {
+  setInterval(() => {
+    if (!state.roomCode) return;
+    send('input', { input: state.keys });
+  }, 33);
 
-(function hydrateFromURL() {
+  setInterval(() => {
+    if (!state.roomCode) return;
+    send('ping', { stamp: Date.now() });
+  }, 1500);
+}
+
+function init() {
   const params = new URLSearchParams(location.search);
   const room = params.get('room');
   if (room) dom.roomInput.value = room.toUpperCase();
-})();
 
-setupMobileControls();
-sendInputLoop();
-draw();
-showScreen(dom.homeScreen);
+  dom.hostBtn.addEventListener('click', startHost);
+  dom.joinBtn.addEventListener('click', startJoin);
+  dom.startBtn.addEventListener('click', () => send('startGame'));
+  dom.leaveBtn.addEventListener('click', () => state.ws?.close());
+  dom.chatForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = dom.chatInput.value.trim();
+    if (!text) return;
+    send('chat', { text });
+    dom.chatInput.value = '';
+  });
+
+  bindKeyboard();
+  bindMobile();
+  loops();
+  draw();
+  show(dom.home);
+}
+
+init();
