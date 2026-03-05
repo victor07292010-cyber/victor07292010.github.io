@@ -1,0 +1,115 @@
+:root {
+  --ink: #e8efff;
+  --muted: #afbedf;
+  --glass: rgba(8, 12, 28, 0.62);
+  --border: rgba(153, 189, 255, 0.28);
+  --accent: #56e9ff;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+body {
+  background: radial-gradient(circle at 20% 5%, #27396a, #0c1122 45%, #060912 80%);
+  overflow-x: hidden;
+}
+.bg-blur {
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 80% 20%, rgba(79, 150, 255, 0.16), transparent 32%),
+              radial-gradient(circle at 30% 75%, rgba(110, 238, 255, 0.12), transparent 28%);
+}
+#app { max-width: 1220px; margin: 0 auto; padding: 18px; position: relative; }
+.card {
+  background: linear-gradient(150deg, rgba(19, 30, 58, 0.9), rgba(9, 15, 31, 0.9));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35);
+  backdrop-filter: blur(8px);
+}
+.hide { display: none !important; }
+.show { display: block; }
+h1,h2 { margin: 0 0 10px; letter-spacing: .3px; }
+.muted { color: var(--muted); }
+.error { min-height: 1.2em; color: #ff9fbc; }
+label { display: block; margin-top: 11px; font-weight: 650; }
+input {
+  margin-top: 6px; width: 100%;
+  padding: 10px 11px; border-radius: 11px;
+  border: 1px solid rgba(136, 166, 238, 0.45);
+  background: rgba(5, 10, 20, 0.8); color: var(--ink);
+}
+.row { display: flex; gap: 10px; margin-top: 14px; }
+button {
+  border: none; border-radius: 11px; font-weight: 800; letter-spacing: .3px;
+  padding: 10px 16px; cursor: pointer; color: #051122;
+  background: linear-gradient(130deg, #61f3ff, #7da5ff);
+}
+button:hover { filter: brightness(1.05); }
+button.ghost { color: var(--ink); background: rgba(40, 59, 106, 0.7); border: 1px solid var(--border); }
+#players { list-style: none; margin: 0; padding: 0; }
+#players li { padding: 8px 0; border-bottom: 1px solid rgba(123, 157, 228, 0.22); }
+.mono { font-family: ui-monospace, Menlo, monospace; color: #9fd9ff; }
+
+#game { position: relative; }
+#canvas {
+  width: 100%;
+  max-height: 74vh;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #070d1c;
+}
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+#hud {
+  position: absolute; left: 14px; top: 14px; z-index: 6;
+  display: flex; gap: 14px; padding: 9px 12px; font-size: 13px;
+}
+#scoreboard {
+  position: absolute; right: 14px; top: 14px; z-index: 6;
+  min-width: 230px; padding: 10px; font-size: 13px;
+}
+#notice {
+  position: absolute; left: 50%; transform: translateX(-50%); top: 14px; z-index: 7;
+  background: rgba(70, 236, 255, .17); border: 1px solid #57ecff; border-radius: 999px;
+  padding: 8px 15px; opacity: 0; transition: opacity .2s;
+}
+#chat {
+  position: absolute; left: 14px; bottom: 14px; z-index: 6;
+  width: min(390px, 88vw); overflow: hidden;
+}
+#chatLog { height: 128px; overflow-y: auto; padding: 8px; font-size: 13px; }
+.chatLine { margin-bottom: 4px; color: #d5deff; }
+#chatForm { display: flex; }
+#chatForm input { margin: 0; border-radius: 0; border: 0; border-top: 1px solid var(--border); }
+#chatForm button { border-radius: 0; }
+
+#mobile {
+  pointer-events: none;
+  position: absolute; inset: auto 0 0 0; height: 170px; z-index: 10;
+}
+#stick {
+  pointer-events: auto;
+  position: absolute; left: 18px; bottom: 14px; width: 120px; height: 120px;
+  border-radius: 50%; border: 2px solid #61e8ff; background: rgba(97, 232, 255, 0.12);
+}
+#knob {
+  position: absolute; left: 33px; top: 33px; width: 54px; height: 54px;
+  border-radius: 50%; background: #8bebff;
+}
+#mobileButtons {
+  pointer-events: auto;
+  position: absolute; right: 20px; bottom: 20px; display: flex; gap: 10px;
+}
+#mineBtn, #pulseBtn {
+  width: 84px; height: 84px; border-radius: 50%; color: #fff;
+}
+#mineBtn { background: linear-gradient(120deg, #ff7db5, #fd4e7d); }
+#pulseBtn { background: linear-gradient(120deg, #8d9bff, #5c6df8); }
+
+@media (max-width: 800px) {
+  #hud { font-size: 11px; gap: 8px; }
+  #scoreboard { min-width: 170px; font-size: 12px; }
+}
